@@ -2,11 +2,13 @@ from telegram.ext import Updater, MessageHandler, CommandHandler, Filters, Callb
 from telegram import Update, TelegramError
 import json
 import config
+from random import choice
 
 # name|chat_id
 groups = dict()
+users = dict() # user_id: username
 
-with open('groups.txt') as f:
+with open('groups.json') as f:
     groups = json.load(f)
     f.close()
 
@@ -52,8 +54,8 @@ def forwardMsg(update: Update, context: CallbackContext):
                                        message_id=update.message.message_id)
             context.bot.sendMessage(chat_id=update.message.chat_id, text=f'Viesti välitetty.')
         except TelegramError:
-            context.bot.sendMessage(chat_id=update.message.chat_id, text='Jokin meni pieleen :/')
-
+            #context.bot.sendMessage(chat_id=update.message.chat_id, text='Jokin meni pieleen :/')
+            pass
 
 def replyForward(update: Update, context: CallbackContext):
     name = update.message.parse_entity(update.message.entities[0])[1:]
@@ -62,7 +64,8 @@ def replyForward(update: Update, context: CallbackContext):
             context.bot.forward_message(chat_id=groups[name], from_chat_id=update.message.chat_id,
                                         message_id=update.message.reply_to_message.message_id)
         except TelegramError:
-            context.bot.sendMessage(chat_id=update.message.chat_id, text='Jokin meni pieleen :/')
+            #context.bot.sendMessage(chat_id=update.message.chat_id, text='Jokin meni pieleen :/')
+            pass
 
 
 def changeName(update: Update, context: CallbackContext):
@@ -86,7 +89,7 @@ def changeName(update: Update, context: CallbackContext):
     # The group has not been added yet so might as well add it here
     groups[newName] = update.message.chat_id
     writeToFile()
-    context.bot.sendMessage(chat_id=update.message.chat_id, text=f'Ryhmää lisätty.')
+    context.bot.sendMessage(chat_id=update.message.chat_id, text=f'Ryhmä lisätty.')
 
 
 def help(update: Update, context: CallbackContext):
@@ -96,6 +99,17 @@ def help(update: Update, context: CallbackContext):
         f'Välitä viesti toiselle viestille: @ryhmä viestisi'
     context.bot.sendMessage(chat_id=update.message.chat_id, text=helpText)
 
+def chatMemberLister(update: Update, context: CallbackContext):
+    if update.message.chat.type != 'private':
+        pass
+    users[update.message.from_user.id] = update.message.from_user.username
+
+def joku(update: Update, context: CallbackContext):
+    if len(users) == 0:
+        return
+    user = choice(list(users.keys()))
+    context.bot.send_message(chat_id=update.message.chat_id,
+                            text=f'@{users[user]} voisi')
 
 updater = Updater(token=config.TOKEN, use_context=True)
 dispatcher = updater.dispatcher
@@ -106,5 +120,7 @@ dispatcher.add_handler(CommandHandler('changename', changeName))
 dispatcher.add_handler(CommandHandler('help', help))
 dispatcher.add_handler(MessageHandler(Filters.reply & Filters.entity('mention'), replyForward))
 dispatcher.add_handler(MessageHandler(Filters.entity('mention'), forwardMsg))
+dispatcher.add_handler(MessageHandler(Filters.regex('joku'), joku))
+dispatcher.add_handler(MessageHandler(Filters.text, chatMemberLister))
 
 updater.start_polling()
